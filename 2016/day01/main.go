@@ -1,12 +1,16 @@
 package main
 
 import (
+	_ "embed"
 	"flag"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 )
+
+//go:embed input.txt
+var inputTxt string
 
 // CardinalDirection Go-style Enum to track a cardinal direction
 type CardinalDirection int
@@ -46,22 +50,15 @@ type Coordinate struct{ X, Y int }
 
 type VisitedLocations map[Coordinate]bool
 
-// loadInput loads the input.txt file into a string array
-func loadInput(filePath string) ([]string, error) {
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load/open file %s: %v", filePath, err)
-	}
-
-	content := string(data)
-
-	parts := strings.Split(content, ",")
+// loadInput loads the embedded input file into a string array
+func loadInput() []string {
+	parts := strings.Split(inputTxt, ",")
 
 	for i := range parts {
 		parts[i] = strings.TrimSpace(parts[i])
 	}
 
-	return parts, nil
+	return parts
 }
 
 // parseInstructions takes the input from the file and parses each into an Instruction
@@ -135,10 +132,7 @@ func calculateBlocksAway(finalLocation Coordinate) int {
 }
 
 func run(part int) error {
-	unparsedDirections, err := loadInput("input.txt")
-	if err != nil {
-		return err
-	}
+	unparsedDirections := loadInput()
 
 	directions, err := parseInstructions(unparsedDirections)
 	if err != nil {
