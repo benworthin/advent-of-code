@@ -19,18 +19,23 @@ const (
 )
 
 func (d CardinalDirection) String() string {
+	if d < North || d > West {
+		return fmt.Sprintf("Unknown Cardinal Direction: CardinalDirection(%d)", d)
+	}
 	return [...]string{"N", "E", "S", "W"}[d]
 }
 
-// Constants for Right ("R") and Left ("L")
+// Turn represents L or R
+type Turn byte
+
 const (
-	Left  = "L"
-	Right = "R"
+	Left  Turn = 'L'
+	Right Turn = 'R'
 )
 
 // Instruction models a single instruction for moving
 type Instruction struct {
-	Direction string
+	Direction Turn
 	Distance  int
 }
 
@@ -38,6 +43,8 @@ type Instructions []Instruction
 
 // Coordinate models the current location as X and Y
 type Coordinate struct{ X, Y int }
+
+type VisitedLocations map[Coordinate]bool
 
 // loadInput loads the input.txt file into a string array
 func loadInput(filePath string) ([]string, error) {
@@ -69,11 +76,11 @@ func parseInstructions(unparsedInstructions []string) (Instructions, error) {
 			return nil, fmt.Errorf("invalid instruction: %s", unparsedInstruction)
 		}
 
-		direction := unparsedInstruction[:1]
+		direction := Turn(unparsedInstruction[0])
 		distanceStr := unparsedInstruction[1:]
 
-		if direction != "R" && direction != "L" {
-			return nil, fmt.Errorf("invalid direction: %s", direction)
+		if direction != Right && direction != Left {
+			return nil, fmt.Errorf("invalid direction: %q", direction)
 		}
 
 		distance, err := strconv.Atoi(distanceStr)
@@ -88,14 +95,14 @@ func parseInstructions(unparsedInstructions []string) (Instructions, error) {
 }
 
 // changeDirection updates the cardinal direction based on which way we turn
-func changeDirection(currentDirection CardinalDirection, direction string) (CardinalDirection, error) {
+func changeDirection(currentDirection CardinalDirection, direction Turn) (CardinalDirection, error) {
 	switch direction {
 	case Left:
 		return (currentDirection - 1 + 4) % 4, nil
 	case Right:
 		return (currentDirection + 1) % 4, nil
 	default:
-		return 0, fmt.Errorf("invalid direction: %s", direction)
+		return 0, fmt.Errorf("invalid direction: %q", direction)
 	}
 }
 
@@ -111,21 +118,20 @@ func move(facing CardinalDirection, currentLocation Coordinate, distance int) (C
 	case East:
 		return Coordinate{currentLocation.X + distance, currentLocation.Y}, nil
 	default:
-		return Coordinate{}, fmt.Errorf("invalid direction: %s", facing)
+		return Coordinate{}, fmt.Errorf("invalid direction: %v", facing)
 	}
-
-	return nil
 }
 
 // calculateBlocksAway calculates the total number of blocks away we are from the start to the final location
 func calculateBlocksAway(finalLocation Coordinate) int {
-	if finalLocation.X < 0 {
-		finalLocation.X = -finalLocation.X
+	abs := func(x int) int {
+		if x < 0 {
+			return -x
+		}
+		return x
 	}
-	if finalLocation.Y < 0 {
-		finalLocation.Y = -finalLocation.Y
-	}
-	return finalLocation.X + finalLocation.Y
+
+	return abs(finalLocation.X) + abs(finalLocation.Y)
 }
 
 func run(part int) error {
@@ -157,19 +163,58 @@ func run(part int) error {
 		blocksAway := calculateBlocksAway(currentLocation)
 		fmt.Printf("Blocks away: %d\n", blocksAway)
 
-	} else if part == 2 {
-		return fmt.Errorf("part 2 not implemented")
 	} else {
-		return fmt.Errorf("invalid part: %d", part)
+		facing := North
+		startingLocation := Coordinate{X: 0, Y: 0}
+		visited := make(VisitedLocations)
+		visited[startingLocation] = true
+
+		currentLocation := startingLocation
+		for _, instruction := range directions {
+			facing, err = changeDirection(facing, instruction.Direction)
+			if err != nil {
+				return err
+			}
+
+			for i := 1; i <= instruction.Distance; i++ {
+				currentLocation, err = move(facing, currentLocation, 1)
+				if err != nil {
+					return err
+				}
+
+				_, ok := visited[currentLocation]
+				if ok {
+					blocksAway := calculateBlocksAway(currentLocation)
+					fmt.Printf("Location %v has been visited prior\n", currentLocation)
+					fmt.Printf("Blocks away: %d\n", blocksAway)
+					return nil
+				}
+
+				visited[currentLocation] = true
+			}
+		}
+
+		return nil
 	}
 
 	return nil
 }
 
 func main() {
-	part := flag.Int("part", 1, "Run part 1 or 2")
+	part := flag.Int("part", 1, "Run Part 1 or 2")
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: go run main.go [--part=1|2]\n")
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 
+	if *part != 1 && *part != 2 {
+		fmt.Fprintf(os.Stderr, "invalid --part %d; must be 1 or 2\n", *part)
+		flag.Usage()
+		os.Exit(2)
+	}
+
+	fmt.Printf("Running Day 01 Part %d\n", *part)
 	if err := run(*part); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
